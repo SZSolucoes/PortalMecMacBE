@@ -239,7 +239,7 @@ module.exports = (app, mysqlCon, sockets, axios, _) => {
         }
     });
 
-    app.post('/itemmanutxvehiclebatch', (req, res) => {
+    app.post('/itemmanutxvehiclebatch', async (req, res) => {
         const con = mysqlCon();
         const jsonRes = { success: 'true', message: 'Inclusão efetuada com sucesso!' };
         const params = req.body;
@@ -251,10 +251,10 @@ module.exports = (app, mysqlCon, sockets, axios, _) => {
             params.vehiclesTo.length) 
         {
             try {
-                const mappedItens = _.map(params.vehiclesTo, (item) => {
+                let mappedItens = _.map(params.vehiclesTo, (item) => {
                     let vehicleid = '';
                     if (item.length === 3) {
-                        vehicleid = `${item[0].trim()}|${item[1].trim()}|${item[2].trim()}`;
+                        vehicleid = `|${item[0].trim()}|${item[1].trim()}|${item[2].trim()}`;
                     } else if (item.length >= 4) {
                         vehicleid = `${item[0].trim()}|${item[1].trim()}|${item[2].trim()}|${item[3].trim()}`;
                     }
@@ -262,22 +262,70 @@ module.exports = (app, mysqlCon, sockets, axios, _) => {
                     return [params.itemmanutID, vehicleid];
                 });
 
-                con.connect();
-                con.query('INSERT IGNORE INTO itemmanutxvehicle (itemmanutid, vehicleid) VALUES ?', [mappedItens], (error, results, fields) => {
-                    if (error) {
-                        jsonRes.success = 'false';
-                        jsonRes.message = error.sqlMessage;
-                        console.log(error);
-                    } else {
-                        sockets.forEach((socket) => 
-                            socket.emit(
-                                'table_itemmanutxvehicle_changed', 
-                                params.itemmanutID
-                            )
-                        );
-                    }
-                    res.send(jsonRes);
+                mappedItens = _.uniqBy(mappedItens, mappedItens => mappedItens[1]);
+
+                let queryCheck = '(';
+                const mappedIds = []
+
+                mappedItens.forEach((mp, idx) => {
+                    queryCheck += ('SELECT ' + con.escape(mp[1]) + (idx !== mappedItens.length - 1 ? ' notid  UNION ALL ' : ' notid '));
+                    mappedIds.push(mp[1]);
                 });
+
+                queryCheck += ') TMP' ; 
+
+                con.connect();
+
+                let existcar = await con.query(
+                    'SELECT notid FROM ' + queryCheck +' WHERE NOT EXISTS (' +
+                    'SELECT id FROM (' +
+                    '(SELECT id FROM car WHERE car.id IN (?)) ' +
+                    'UNION ALL ' +
+                    '(SELECT id FROM bike WHERE bike.id IN (?)) ' +
+                    'UNION ALL ' +
+                    '(SELECT id FROM truck WHERE truck.id IN (?))) VEHICLES WHERE TMP.notid = id)', 
+                    [mappedIds, mappedIds, mappedIds]);
+
+                existcar = existcar.map(newv => newv.notid);
+
+                const filtredNotExists = _.filter(mappedItens, fmp => {
+                    for (let index = 0; index < existcar.length; index++) {
+                        const element = existcar[index];
+                        if (fmp[1] === element) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                })
+
+                if (filtredNotExists && filtredNotExists.length) {
+                    con.query('INSERT IGNORE INTO itemmanutxvehicle (itemmanutid, vehicleid) VALUES ?', 
+                    [filtredNotExists], 
+                    (error, results, fields) => {
+                        if (error) {
+                            jsonRes.success = 'false';
+                            jsonRes.message = error.sqlMessage;
+                            console.log(error);
+                        } else {
+                            sockets.forEach((socket) => 
+                                socket.emit(
+                                    'table_itemmanutxvehicle_changed', 
+                                    params.itemmanutID
+                                )
+                            );
+                        }
+                        jsonRes.success = 'true';
+                        jsonRes.message = existcar;
+                        res.send(jsonRes);
+                    });
+                } else {
+                    jsonRes.success = 'true';
+                    jsonRes.message = existcar;
+                    res.send(jsonRes);
+                }
+
+
             } catch (e) {
                 jsonRes.success = 'false';
                 jsonRes.message = 'Falha de comunicação com o banco de dados';

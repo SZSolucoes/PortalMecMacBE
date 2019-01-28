@@ -59,6 +59,45 @@ module.exports = (app, mysqlCon, sockets, axios) => {
         
         con.end();
     });
+
+    app.put('/veiculos', (req, res) => {
+        const con = mysqlCon();
+        const jsonRes = { success: 'true', message: 'Inclusão de veículo efetuado com sucesso!' };
+        const params = req.body;
+        const id = params.id;
+
+        params.id = params.newId;
+
+        let tableType = params.vehicletype
+        if (tableType === '1') {
+            tableType = 'car';
+        } else if (tableType === '2') {
+            tableType = 'bike';
+        } else {
+            tableType = 'truck';
+        }
+        
+        delete params.newId;;
+        delete params.vehicletype;
+    
+        try {
+            con.connect();
+            con.query(`UPDATE ${tableType} SET ? WHERE id = ?`, [req.body, id], (error, results, fields) => {
+                if (error) {
+                    jsonRes.success = 'false';
+                    jsonRes.message = error.sqlMessage;
+                }
+                res.send(jsonRes);
+            });
+        } catch (e) {
+            jsonRes.success = 'false';
+            jsonRes.message = 'Falha de comunicação com o banco de dados';
+            console.log(e);
+            res.send(jsonRes);
+        }
+        
+        con.end();
+    });
     
     app.delete('/veiculos', function (req, res) {
         const con = mysqlCon();

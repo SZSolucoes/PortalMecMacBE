@@ -60,13 +60,14 @@ module.exports = (app, mysqlCon, sockets, axios) => {
         con.end();
     });
 
-    app.put('/veiculos', (req, res) => {
+    app.put('/veiculos', async (req, res) => {
         const con = mysqlCon();
-        const jsonRes = { success: 'true', message: 'Inclusão de veículo efetuado com sucesso!' };
+        const jsonRes = { success: 'true', message: 'Modificação efetuada com sucesso!' };
         const params = req.body;
         const id = params.id;
+        const newId = params.newId;
 
-        params.id = params.newId;
+        params.id = newId;
 
         let tableType = params.vehicletype
         if (tableType === '1') {
@@ -79,24 +80,89 @@ module.exports = (app, mysqlCon, sockets, axios) => {
         
         delete params.newId;;
         delete params.vehicletype;
-    
-        try {
-            con.connect();
-            con.query(`UPDATE ${tableType} SET ? WHERE id = ?`, [req.body, id], (error, results, fields) => {
-                if (error) {
+        
+        con.connect();
+
+        try { 
+            await con.beginTransaction(async (err) => {
+                if (err) { 
                     jsonRes.success = 'false';
-                    jsonRes.message = error.sqlMessage;
+                    jsonRes.message = 'Falha na modificação do veículo.';
+                    console.log(err);
+                    res.send(jsonRes);
+                    con.end();
+                    return false;
                 }
-                res.send(jsonRes);
+                const asyncFunExecQuerys = async () => {
+                    let rowIds = [];
+
+                    try {
+                        await con.query(`UPDATE ${tableType} SET ? WHERE id = ?`, [params, id]);
+                        await con.query('UPDATE itemmanutxvehicle SET ? WHERE vehicleid = ?', [{ vehicleid: newId }, id]);
+                        rowIds = await con.query('SELECT id FROM itemmanutxvehicle WHERE vehicleid = ?', [newId]);
+                    } catch (er) {
+                        jsonRes.success = 'false';
+                        jsonRes.message = 'Falha de comunicação com o banco de dados';
+                        if (er && typeof er === 'object' && er.sqlMessage) {
+                            jsonRes.message = er.sqlMessage;
+                        }
+                        console.log(er);
+                        con.rollback(() => {
+                            res.send(jsonRes);
+                            con.end();
+                        });
+                        
+                        return false;
+                    }
+
+                    try {
+                        con.commit((err) => {
+                            if (err) {
+                                jsonRes.success = 'false';
+                                jsonRes.message = 'Falha na modificação do veículo.';
+                                con.rollback(() => {
+                                    res.send(jsonRes);
+                                    con.end();
+                                });
+                                return false;
+                            }
+                            
+                            rowIds.forEach(rowId => {
+                                sockets.forEach((socket) => {   
+                                    socket.emit(
+                                        'table_itemmanutxvehicle_changed', 
+                                        rowId
+                                    )
+                                });
+                            })
+                            res.send(jsonRes);
+                            con.end();
+                            return true;
+                        });
+                    } catch (e) {
+                        jsonRes.success = 'false';
+                        jsonRes.message = 'Falha na cópia do manual.';
+                        console.log(e);
+                        con.rollback(() => {
+                            res.send(jsonRes);
+                            con.end();
+                        });
+                        return false;
+                    }
+                };
+
+                await asyncFunExecQuerys();
             });
         } catch (e) {
             jsonRes.success = 'false';
             jsonRes.message = 'Falha de comunicação com o banco de dados';
+            if (e && typeof e === 'object' && e.sqlMessage) {
+                jsonRes.message = e.sqlMessage;
+            }
             console.log(e);
             res.send(jsonRes);
+            con.end();
         }
-        
-        con.end();
     });
     
     app.delete('/veiculos', function (req, res) {

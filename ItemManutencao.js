@@ -153,7 +153,7 @@ module.exports = (app, mysqlCon, sockets, axios, _) => {
     
         con.end();
     });
-    
+
     app.get('/itemmanutencaoid', (req, res) => {
         const con = mysqlCon();
     
@@ -372,6 +372,4 @@ module.exports = (app, mysqlCon, sockets, axios, _) => {
     
         con.end();
     });
-
-
 }

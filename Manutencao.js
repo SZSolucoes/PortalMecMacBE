@@ -95,5 +95,39 @@ module.exports = (app, mysqlCon, sockets, axios) => {
     
         con.end();
     });
+
+    app.put('/manutencao', (req, res) => {
+        const con = mysqlCon();
+        const jsonRes = { success: 'true', message: 'Modificação efetuada com sucesso!' };
+        const params = req.body;
+        const id = params.id;
+
+        delete params.id;
+
+        try {
+            con.connect();
+            con.query(`UPDATE manutencao SET ? WHERE id = ?`, [params, id], (error, results, fields) => {
+                if (error) {
+                    jsonRes.success = 'false';
+                    jsonRes.message = error.sqlMessage;
+                } else {
+                    sockets.forEach((socket) => 
+                        socket.emit(
+                            'table_manutencao_changed', 
+                            'true'
+                        )
+                    );
+                }
+                res.send(jsonRes);
+            });
+        } catch (e) {
+            jsonRes.success = 'false';
+            jsonRes.message = 'Falha de comunicação com o banco de dados';
+            console.log(e);
+            res.send(jsonRes);
+        }
+    
+        con.end();
+    });
 }
 

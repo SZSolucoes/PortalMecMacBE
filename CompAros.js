@@ -64,6 +64,40 @@ module.exports = (app, mysqlCon, sockets, axios) => {
     
         con.end();
     });
+
+    app.put('/comparos', (req, res) => {
+        const con = mysqlCon();
+        const jsonRes = { success: 'true', message: 'Inclusão efetuada com sucesso!' };
+        const params = req.body;
+        const id = params.id;
+
+        delete params.id;
+    
+        try {
+            con.connect();
+            con.query('UPDATE comparos SET ? WHERE id = ?', [params, id], (error, results, fields) => {
+                if (error) {
+                    jsonRes.success = 'false';
+                    jsonRes.message = error.sqlMessage;
+                } else {
+                    sockets.forEach((socket) => 
+                        socket.emit(
+                            'table_comparos_changed', 
+                            'true'
+                        )
+                    );
+                }
+                res.send(jsonRes);
+            });
+        } catch (e) {
+            jsonRes.success = 'false';
+            jsonRes.message = 'Falha de comunicação com o banco de dados';
+            console.log(e);
+            res.send(jsonRes);
+        }
+    
+        con.end();
+    });
     
     app.delete('/comparos', (req, res) => {
         const con = mysqlCon();

@@ -2,17 +2,25 @@ module.exports = (app, mysqlCon, sockets, axios) => {
     app.get('/manutencao', (req, res) => {
         const con = mysqlCon();
         const params = req.query;
+        let fields = 'manutencao.id id, idbike, idcar, iditemmanut, idtruck, itemmanutencao.item itemmanut, itemabrev,';
+        fields += 'mes, milhas, quilometros, tipomanut';
         let query = '';
         let value = '';
         
         if (params.idcar) {
-            query = 'SELECT * FROM manutencao WHERE idcar = ? ORDER BY id';
+            query = `SELECT  ${fields} FROM manutencao `;
+            query += 'INNER JOIN itemmanutencao ON manutencao.iditemmanut = itemmanutencao.id '
+            query += 'WHERE manutencao.idcar = ? ORDER BY manutencao.id'
             value = params.idcar;
         } else if (params.idbike) {
-            query = 'SELECT * FROM manutencao WHERE idbike = ? ORDER BY id';
+            query = `SELECT  ${fields} FROM manutencao `;
+            query += 'INNER JOIN itemmanutencao ON manutencao.iditemmanut = itemmanutencao.id '
+            query += 'WHERE manutencao.idbike = ? ORDER BY manutencao.id'
             value = params.idbike;
         } else if (params.idtruck) {
-            query = 'SELECT * FROM manutencao WHERE idtruck = ? ORDER BY id';
+            query = `SELECT  ${fields} FROM manutencao `;
+            query += 'INNER JOIN itemmanutencao ON manutencao.iditemmanut = itemmanutencao.id '
+            query += 'WHERE manutencao.idtruck = ? ORDER BY manutencao.id'
             value = params.idtruck;
         }
 
@@ -72,7 +80,7 @@ module.exports = (app, mysqlCon, sockets, axios) => {
         
         try {
             con.connect();
-            con.query('DELETE FROM manutencao WHERE id = ?', [req.query.id], (error, results, fields) => {
+            con.query('DELETE FROM manutencao WHERE id = ?', [params.id], (error, results, fields) => {
                 if (error) {
                     jsonRes.success = 'false';
                     jsonRes.message = error.sqlMessage;

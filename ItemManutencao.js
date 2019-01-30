@@ -79,6 +79,40 @@ module.exports = (app, mysqlCon, sockets, axios, _) => {
         con.end();
     });
 
+    app.put('/itemmanutencao', (req, res) => {
+        const con = mysqlCon();
+        const jsonRes = { success: 'true', message: 'Modificação efetuada com sucesso!' };
+        const params = req.body;
+        const id = params.id;
+
+        delete params.id;
+    
+        try {
+            con.connect();
+            con.query('UPDATE itemmanutencao SET ? WHERE id = ?', [params, id], (error, results, fields) => {
+                if (error) {
+                    jsonRes.success = 'false';
+                    jsonRes.message = error.sqlMessage;
+                } else {
+                    sockets.forEach((socket) => 
+                        socket.emit(
+                            'table_itemmanutencao_changed', 
+                            'true'
+                        )
+                    );
+                }
+                res.send(jsonRes);
+            });
+        } catch (e) {
+            jsonRes.success = 'false';
+            jsonRes.message = 'Falha de comunicação com o banco de dados';
+            console.log(e);
+            res.send(jsonRes);
+        }
+    
+        con.end();
+    });
+
     app.post('/itemmanutencaobatch', (req, res) => {
         const con = mysqlCon();
         const jsonRes = { success: 'true', message: 'Inclusão efetuada com sucesso!' };
@@ -87,7 +121,7 @@ module.exports = (app, mysqlCon, sockets, axios, _) => {
         if (params && params.item && params.item instanceof Array && params.item.length) {
             try {
                 con.connect();
-                con.query('INSERT IGNORE INTO itemmanutencao (item) VALUES ?', [params.item], (error, results, fields) => {
+                con.query('INSERT IGNORE INTO itemmanutencao (itemabrev, item) VALUES ?', [params.item], (error, results, fields) => {
                     if (error) {
                         jsonRes.success = 'false';
                         jsonRes.message = error.sqlMessage;

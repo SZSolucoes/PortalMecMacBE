@@ -72,6 +72,43 @@ module.exports = (app, mysqlCon, sockets, axios) => {
     
         con.end();
     });
+
+    app.post('/manutencaolote', (req, res) => {
+        const con = mysqlCon();
+        const jsonRes = { success: 'true', message: 'Inclusão efetuada com sucesso!' };
+        const params = req.body;
+        
+        try {
+            if (params && params.tbl && params.values && params.values.length) {
+                con.connect();
+                con.query('INSERT IGNORE INTO manutencao (??, mes, milhas, quilometros, tipomanut, iditemmanut) VALUES ?', 
+                [params.tbl, params.values], (error, results, fields) => {
+                    if (error) {
+                        jsonRes.success = 'false';
+                        jsonRes.message = error.sqlMessage;
+                        console.log(error);
+                    } else {
+                        sockets.forEach((socket) => 
+                            socket.emit(
+                                'table_manutencao_changed', 
+                                'true'
+                            )
+                        );
+                    }
+                    res.send(jsonRes);
+                });
+            } else {
+                res.send(jsonRes);
+            }
+        } catch (e) {
+            jsonRes.success = 'false';
+            jsonRes.message = 'Falha de comunicação com o banco de dados';
+            console.log(e);
+            res.send(jsonRes);
+        }
+    
+        con.end();
+    });
     
     app.delete('/manutencao', (req, res) => {
         const con = mysqlCon();

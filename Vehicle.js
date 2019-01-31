@@ -30,6 +30,8 @@ module.exports = (app, mysqlCon, sockets, axios) => {
         const con = mysqlCon();
         const jsonRes = { success: 'true', message: 'Inclusão de veículo efetuado com sucesso!' };
         const params = req.body;
+        const vehicletype = params.vehicletype;
+
         let tableType = params.vehicletype
         if (tableType === '1') {
             tableType = 'car';
@@ -47,6 +49,13 @@ module.exports = (app, mysqlCon, sockets, axios) => {
                 if (error) {
                     jsonRes.success = 'false';
                     jsonRes.message = error.sqlMessage;
+                } else {
+                    sockets.forEach((socket) => {   
+                        socket.emit(
+                            'table_veiculos_changed', 
+                            vehicletype
+                        )
+                    });
                 }
                 res.send(jsonRes);
             });
@@ -66,6 +75,7 @@ module.exports = (app, mysqlCon, sockets, axios) => {
         const params = req.body;
         const id = params.id;
         const newId = params.newId;
+        const vehicletype = params.vehicletype;
 
         params.id = newId;
 
@@ -78,7 +88,7 @@ module.exports = (app, mysqlCon, sockets, axios) => {
             tableType = 'truck';
         }
         
-        delete params.newId;;
+        delete params.newId;
         delete params.vehicletype;
         
         con.connect();
@@ -134,6 +144,12 @@ module.exports = (app, mysqlCon, sockets, axios) => {
                                         rowId
                                     )
                                 });
+                                sockets.forEach((socket) => {
+                                    socket.emit(
+                                        'table_veiculos_changed', 
+                                        vehicletype
+                                    )
+                                });
                             })
                             res.send(jsonRes);
                             con.end();
@@ -164,11 +180,58 @@ module.exports = (app, mysqlCon, sockets, axios) => {
             con.end();
         }
     });
+
+    app.put('/veiculoscomp', async (req, res) => {
+        const con = mysqlCon();
+        const jsonRes = { success: 'true', message: 'Salvo com sucesso!' };
+        const params = req.body;
+        const id = params.id;
+        const vehicletype = params.vehicletype;
+
+        let tableType = params.vehicletype
+        if (tableType === '1') {
+            tableType = 'car';
+        } else if (tableType === '2') {
+            tableType = 'bike';
+        } else {
+            tableType = 'truck';
+        }
+    
+        delete params.id;
+        delete params.vehicletype;
+    
+        try {
+            con.connect();
+            con.query(`UPDATE ${tableType} SET ? WHERE id = ?`, [params, id], (error, results, fields) => {
+                if (error) {
+                    jsonRes.success = 'false';
+                    jsonRes.message = error.sqlMessage;
+                } else {
+                    sockets.forEach((socket) => {   
+                        socket.emit(
+                            'table_veiculos_changed', 
+                            vehicletype
+                        )
+                    });
+                }
+                res.send(jsonRes);
+            });
+        } catch (e) {
+            jsonRes.success = 'false';
+            jsonRes.message = 'Falha de comunicação com o banco de dados';
+            console.log(e);
+            res.send(jsonRes);
+        }
+        
+        con.end();
+    });
     
     app.delete('/veiculos', function (req, res) {
         const con = mysqlCon();
         const jsonRes = { success: 'true', message: 'Remoção efetuada com sucesso!' };
         const params = req.query;
+        const vehicletype = params.vehicletype;
+        
         let tableType = params.vehicletype
         if (tableType === '1') {
             tableType = 'car';
@@ -184,6 +247,13 @@ module.exports = (app, mysqlCon, sockets, axios) => {
                 if (error) {
                     jsonRes.success = 'false';
                     jsonRes.message = error.sqlMessage;
+                } else {
+                    sockets.forEach((socket) => {   
+                        socket.emit(
+                            'table_veiculos_changed', 
+                            vehicletype
+                        )
+                    });
                 }
                 res.send(jsonRes);
             });

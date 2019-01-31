@@ -125,7 +125,7 @@ module.exports = (app, mysqlCon, sockets, axios, _) => {
                             try {
                                 if (lCopyManutencao) { 
                                     await con.query(
-                                        `INSERT IGNORE INTO manutencao (idcar, idbike, idtruck, itemmanut, mes, milhas, quilometros, tipomanut) VALUES ?`, 
+                                        `INSERT IGNORE INTO manutencao (idcar, idbike, idtruck, mes, milhas, quilometros, tipomanut, iditemmanut) VALUES ?`, 
                                         [newManualManut]
                                     );
                                 }

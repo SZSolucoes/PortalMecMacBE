@@ -121,7 +121,8 @@ module.exports = (app, mysqlCon, sockets, axios, _) => {
         if (params && params.item && params.item instanceof Array && params.item.length) {
             try {
                 con.connect();
-                con.query('INSERT IGNORE INTO itemmanutencao (itemabrev, item) VALUES ?', [params.item], (error, results, fields) => {
+                con.query('INSERT IGNORE INTO itemmanutencao (referencia, itemabrev, item) VALUES ?', 
+                [params.item], (error, results, fields) => {
                     if (error) {
                         jsonRes.success = 'false';
                         jsonRes.message = error.sqlMessage;
